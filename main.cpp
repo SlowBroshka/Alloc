@@ -10,12 +10,15 @@
 // size - размер участка памяти, на который указывает buf
 using namespace std;
 
-struct Cell
+//#pragma pack(push, 1)
+struct  __attribute__((packed, aligned(1))) Cell
 {
     bool IsFree;
     size_t Size;
+    Cell *pCell;
     void *pData;
 };
+//#pragma pack(pop)
 struct MainCell
 {
     size_t Size;
@@ -42,55 +45,53 @@ void SetCell( void * const _ptr, size_t size, bool Flag){
     ptr += sizeof(size_t);
     *(size_t*)ptr = size;
     ptr += sizeof(size_t);
+    //(Cell*)ptr = nullptr;
 }
-
-MainCell maincell;
-Cell cell;
 
 void *Start;
 
 void mysetup(void *buf, size_t size) {
 
     Start = buf;
-
     *(size_t*)buf = size;
     buf += sizeof(size_t);
-
     *(size_t*)buf = 0;
     buf += sizeof(size_t);
 
     dbPrint((MainCell*)Start);
 }
 
-
-
 // Функция аллокации
 void *myalloc(std::size_t size) {
-    void *ptr = Start + sizeof(size_t);
+    void *ptr = (*(MainCell*)Start).pData;
     size_t MAX = *(size_t*)Start;
     size_t nums = ((MainCell*)Start)->Nums;
 
+    dbPrint((MainCell*)ptr);
+
     if (nums == 0){
-
-    }
-
-
-    while (ptr != nullptr){
-
-        if ((((Cell*)ptr)->IsFree) && (((Cell*)ptr)->Size > size + sizeof(Cell))){
-            ((Cell*)ptr)->IsFree = false;
-            ((Cell*)ptr)->Size = size;
-
-            break;
+        if ((size <= sizeof(Cell) + (*(Cell*)ptr).Size) && ((*(Cell*)ptr).IsFree)){
+            (*(MainCell*)Start).Nums ++;
+            SetCell(ptr, size, false);
+            dbPrint((Cell*)ptr);
+            if ((*(Cell*)ptr).Size + sizeof(Cell) - sizeof(size_t) >= (*(MainCell*)Start).Size + sizeof(Cell)){
+                size_t delt = (*(MainCell*)Start).Size + sizeof(Cell) - (*(Cell*)ptr).Size + sizeof(Cell) - sizeof(size_t);
+                cout<<"Delt= "<<delt<<endl;
+                SetCell(ptr + (*(Cell*)ptr).Size, delt, true);
+                (*(Cell*)ptr).pCell = (Cell*)(ptr + (*(Cell*)ptr).Size);
+            }
+            dbPrint((Cell*)ptr);
+            return (*(Cell*)ptr).pData;
+        }else{
+            return nullptr;
         }
-
-
     }
 
 
+    for(int i = 0; i < nums; i++){
 
+    }
     return ptr;
-
 
 }
 // Функция освобождения
@@ -102,10 +103,11 @@ int main() {
     void *data = malloc(DATA_SIZE);
 
     mysetup(data, DATA_SIZE);
-   // dbPrint(cell);
-    /*void *alloc = myalloc(2);
+    cout<<"Start data: "<<data<<endl;
+    //dbPrint(cell);
+    void *alloc = myalloc(2);
     cout<<"myalloc "<<alloc<<endl;
-*/
+
     cout<<data<<endl;
     for (auto i = 0; i < DATA_SIZE; i++){
         cout<<i<<" "<<data + i<<" "<<endl;
