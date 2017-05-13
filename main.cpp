@@ -1,16 +1,8 @@
 #include <iostream>
-
-// Эта функция будет вызвана перед тем как вызывать myalloc и myfree
-// используйте ее чтобы инициализировать ваш аллокатор перед началом
-// работы.
-//
-// buf - указатель на участок логической памяти, который ваш аллокатор
-//       должен распределять, все возвращаемые указатели должны быть
-//       либо равны NULL, либо быть из этого участка памяти
-// size - размер участка памяти, на который указывает buf
 using namespace std;
 
-//#pragma pack(push, 1)
+void *Start;
+
 struct  __attribute__((packed, aligned(1))) Cell
 {
     bool IsFree;
@@ -18,47 +10,77 @@ struct  __attribute__((packed, aligned(1))) Cell
     Cell *pCell;
     void *pData;
 };
-//#pragma pack(pop)
-struct MainCell
+struct __attribute__((packed, aligned(1)))  MainCell
 {
     size_t Size;
     size_t Nums;
     void *pData;
 };
 
+
+
 void dbPrint(MainCell *mc){
+    cout<<"-----------------------------"<<endl;
     cout<<"MainCell"<<endl;
     cout<<"Size "<<&mc->Size<<" --> "<<mc->Size<<endl;
+    cout<<"Nums "<<&mc->Nums<<" --> "<<mc->Nums<<endl;
     cout<<"pDara "<<&mc->pData<<" --> "<<mc->pData<<endl;
+    cout<<"-----------------------------"<<endl;
 }
 void dbPrint(Cell *cell){
+    cout<<"-----------------------------"<<endl;
     cout<<"Cell "<<endl;
     cout<<cell<<endl;
     cout<<"Place "<<&cell->IsFree<<" --> "<<(cell->IsFree ? "FREE":"RESERVED")<<endl;
     cout<<"Size "<<&cell->Size<<" --> "<<cell->Size<<endl;
+    cout<<"pCell "<<&cell->pCell<<" --> "<<cell->pCell<<endl;
     cout<<"pDara "<<&cell->pData<<" --> "<<cell->pData<<endl;
+    cout<<"-----------------------------"<<endl;
+}
+void dbFullPrint(MainCell* const _mc){
+
+    MainCell *mc = _mc;
+    size_t nums = mc->Nums;
+    size_t size = mc->Size;
+    Cell *nowcell = (Cell*)(mc->pData);
+
+
+    cout<<"-----------------------------"<<endl;
+    cout<<"FULL PRINT"<<endl;
+    dbPrint(mc);
+    for (auto i = 0; i < nums; i++){
+        dbPrint(nowcell);
+        nowcell = nowcell->pCell;
+    }
+    cout<<"-----------------------------"<<endl;
 }
 
 void SetCell( void * const _ptr, size_t size, bool Flag){
     void *ptr = _ptr;
-    *(bool*)ptr = Flag;
-    ptr += sizeof(size_t);
-    *(size_t*)ptr = size;
-    ptr += sizeof(size_t);
+    Cell *cell = (Cell*)ptr;
+
+
+    cell->IsFree = Flag;
+    cout<<((MainCell*)Start)->pData<<endl;
+    cell->Size = size;
+    cell->pData = ptr + sizeof(Cell);
+
+
     //(Cell*)ptr = nullptr;
 }
 
-void *Start;
+
 
 void mysetup(void *buf, size_t size) {
 
     Start = buf;
     *(size_t*)buf = size;
     buf += sizeof(size_t);
-    *(size_t*)buf = 0;
+    *(size_t*)buf = (size_t)0;
     buf += sizeof(size_t);
+    (*(MainCell*)Start).pData = buf + sizeof(void*);
 
-    dbPrint((MainCell*)Start);
+    //cout<<((MainCell*)Start)->pData<<endl;
 }
 
 // Функция аллокации
@@ -67,50 +89,83 @@ void *myalloc(std::size_t size) {
     size_t MAX = *(size_t*)Start;
     size_t nums = ((MainCell*)Start)->Nums;
 
-    dbPrint((MainCell*)ptr);
-
     if (nums == 0){
-        if ((size <= sizeof(Cell) + (*(Cell*)ptr).Size) && ((*(Cell*)ptr).IsFree)){
+        if (size <= sizeof(Cell) + MAX){
             (*(MainCell*)Start).Nums ++;
+
             SetCell(ptr, size, false);
-            dbPrint((Cell*)ptr);
-            if ((*(Cell*)ptr).Size + sizeof(Cell) - sizeof(size_t) >= (*(MainCell*)Start).Size + sizeof(Cell)){
-                size_t delt = (*(MainCell*)Start).Size + sizeof(Cell) - (*(Cell*)ptr).Size + sizeof(Cell) - sizeof(size_t);
-                cout<<"Delt= "<<delt<<endl;
-                SetCell(ptr + (*(Cell*)ptr).Size, delt, true);
-                (*(Cell*)ptr).pCell = (Cell*)(ptr + (*(Cell*)ptr).Size);
+
+            if ((*(MainCell*)Start).Size >= ((*(Cell*)ptr).Size + sizeof(Cell) + sizeof(Cell))){
+
+                size_t delt = (*(MainCell*)Start).Size - ((*(Cell*)ptr).Size + sizeof(Cell) + sizeof(Cell));
+                Cell *newcell = (Cell*)((*(Cell*)ptr).pData + (*(Cell*)ptr).Size);
+                SetCell(newcell, delt, true);
+
+                (*(Cell*)ptr).pCell = newcell;
+                (*(MainCell*)Start).Nums++;
+
+                return (*(Cell*)ptr).pData;
+
+            }else{
+                (*(Cell*)ptr).Size += (*(MainCell*)Start).Size - ((*(Cell*)ptr).Size + sizeof(Cell));
+                return (*(Cell*)ptr).pData;
             }
-            dbPrint((Cell*)ptr);
-            return (*(Cell*)ptr).pData;
         }else{
             return nullptr;
         }
     }
 
-
+    Cell *nowptr = (Cell*)ptr;
     for(int i = 0; i < nums; i++){
+        if ((nowptr->IsFree) && (nowptr->Size >= size + sizeof(Cell))){
+            if (nowptr->Size >= size + sizeof(Cell) + sizeof(Cell)){
 
+                size_t delt = nowptr->Size - (sizeof(Cell) + sizeof(Cell) + size);
+                SetCell(nowptr->pData + nowptr->Size, delt, true);
+                (*(Cell*)(nowptr->pData + nowptr->Size)).pCell = nowptr->pCell;
+
+                nowptr->pCell = (*(Cell*)(nowptr->pData + nowptr->Size)).pCell;
+                SetCell(nowptr, size, false);
+
+                (*(MainCell*)Start).Nums++;
+                (*(MainCell*)Start).Nums++;
+
+                return nowptr->pData;
+            }else{
+                SetCell(nowptr, nowptr->Size, false);
+                (*(MainCell*)Start).Nums++;
+                return nowptr->pData;
+            }
+        }else{
+            if (nowptr->pCell == nullptr){
+                return nullptr;
+            }else {
+                nowptr = nowptr->pCell;
+            }
+        }
     }
-    return ptr;
-
+    return nullptr;
 }
 // Функция освобождения
 void myfree(void *p) {
 
 }
+
 int main() {
     static const size_t DATA_SIZE = 100;
     void *data = malloc(DATA_SIZE);
 
+    cout<<"START DATA: "<<data<<endl;
     mysetup(data, DATA_SIZE);
-    cout<<"Start data: "<<data<<endl;
-    //dbPrint(cell);
-    void *alloc = myalloc(2);
+
+    void *alloc = myalloc(4);
     cout<<"myalloc "<<alloc<<endl;
 
-    cout<<data<<endl;
+
+    dbFullPrint((MainCell*)data);
+
     for (auto i = 0; i < DATA_SIZE; i++){
-        cout<<i<<" "<<data + i<<" "<<endl;
+        //cout<<i<<" "<<data + i<<" "<<endl;
     }
 
     //free(data);
