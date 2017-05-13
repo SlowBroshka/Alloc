@@ -1,4 +1,8 @@
 #include <iostream>
+
+
+
+
 using namespace std;
 
 void *Start;
@@ -16,8 +20,6 @@ struct __attribute__((packed, aligned(1)))  MainCell
     size_t Nums;
     void *pData;
 };
-
-
 
 void dbPrint(MainCell *mc){
     cout<<"-----------------------------"<<endl;
@@ -41,7 +43,6 @@ void dbFullPrint(MainCell* const _mc){
 
     MainCell *mc = _mc;
     size_t nums = mc->Nums;
-    size_t size = mc->Size;
     Cell *nowcell = (Cell*)(mc->pData);
 
 
@@ -59,18 +60,10 @@ void SetCell( void * const _ptr, size_t size, bool Flag){
     void *ptr = _ptr;
     Cell *cell = (Cell*)ptr;
 
-
     cell->IsFree = Flag;
-    cout<<((MainCell*)Start)->pData<<endl;
     cell->Size = size;
     cell->pData = ptr + sizeof(Cell);
-
-
-    //(Cell*)ptr = nullptr;
 }
-
-
-
 void mysetup(void *buf, size_t size) {
 
     Start = buf;
@@ -118,22 +111,19 @@ void *myalloc(std::size_t size) {
     Cell *nowptr = (Cell*)ptr;
     for(int i = 0; i < nums; i++){
         if ((nowptr->IsFree) && (nowptr->Size >= size + sizeof(Cell))){
-            if (nowptr->Size >= size + sizeof(Cell) + sizeof(Cell)){
+            if (nowptr->Size >= size + sizeof(Cell)){
 
-                size_t delt = nowptr->Size - (sizeof(Cell) + sizeof(Cell) + size);
-                SetCell(nowptr->pData + nowptr->Size, delt, true);
-                (*(Cell*)(nowptr->pData + nowptr->Size)).pCell = nowptr->pCell;
-
-                nowptr->pCell = (*(Cell*)(nowptr->pData + nowptr->Size)).pCell;
+                size_t delt = nowptr->Size - (sizeof(Cell) + size);
+                SetCell(nowptr->pData + size, delt, true);
+                (*(Cell*)(nowptr->pData + size)).pCell = nowptr->pCell;
                 SetCell(nowptr, size, false);
+                nowptr->pCell = (Cell*)(nowptr->pData + size);
 
-                (*(MainCell*)Start).Nums++;
                 (*(MainCell*)Start).Nums++;
 
                 return nowptr->pData;
             }else{
                 SetCell(nowptr, nowptr->Size, false);
-                (*(MainCell*)Start).Nums++;
                 return nowptr->pData;
             }
         }else{
@@ -152,14 +142,18 @@ void myfree(void *p) {
 }
 
 int main() {
-    static const size_t DATA_SIZE = 100;
+    static const size_t DATA_SIZE = 200;
     void *data = malloc(DATA_SIZE);
 
     cout<<"START DATA: "<<data<<endl;
     mysetup(data, DATA_SIZE);
 
-    void *alloc = myalloc(4);
+    void *alloc = myalloc(2);
     cout<<"myalloc "<<alloc<<endl;
+    dbFullPrint((MainCell*)data);
+
+    void *alloc2 = myalloc(126);
+    cout<<"myalloc "<<alloc2<<endl;
 
 
     dbFullPrint((MainCell*)data);
